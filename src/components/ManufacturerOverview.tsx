@@ -19,7 +19,8 @@ interface ManufacturerOverviewProps {
 
 export function ManufacturerOverview({ packageId }: ManufacturerOverviewProps) {
     const suiClient = useSuiClient();
-    const { chain } = useCurrentWallet();
+    const { currentWallet } = useCurrentWallet(); // safer extraction
+    const chainId = (currentWallet as any)?.chain?.id; // fallback for chain
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -49,24 +50,26 @@ export function ManufacturerOverview({ packageId }: ManufacturerOverviewProps) {
                     ),
                 )
                 .map((obj) => obj.reference.objectId);
-            
+
             if (productObjectIds.length === 0) {
                 setProducts([]);
                 setLoading(false);
                 return;
             }
+
             const objects = await suiClient.multiGetObjects({
                 ids: productObjectIds,
                 options: {
                     showContent: true,
                 },
             });
+
             const productDetails = objects
                 .map((obj) => {
                     if (obj.data && obj.data.content && obj.data.content.dataType === 'moveObject') {
                         return {
                             objectId: obj.data.objectId,
-                            ...(obj.data.content.fields as ProductFields),
+                            ...(obj.data.content.fields as unknown as ProductFields),
                         };
                     }
                     return null;
@@ -95,9 +98,9 @@ export function ManufacturerOverview({ packageId }: ManufacturerOverviewProps) {
     }
 
     const getExplorerUrl = (objectId: string) => {
-        const networkName = chain?.id.split(':')[1] || 'testnet'; 
+        const networkName = chainId?.split(':')[1] || 'testnet';
         return `https://suiexplorer.com/object/${objectId}?network=${networkName}`;
-    }
+    };
 
     return (
         <div className="manufacturer-overview">
@@ -124,7 +127,9 @@ export function ManufacturerOverview({ packageId }: ManufacturerOverviewProps) {
                                 <td>{product.brand}</td>
                                 <td>{product.serial_number}</td>
                                 <td>
-                                    <code>{product.owner_history[product.owner_history.length - 1]}</code>
+                                    <code>
+                                        {product.owner_history[product.owner_history.length - 1]}
+                                    </code>
                                 </td>
                                 <td>
                                     <details>
@@ -132,16 +137,29 @@ export function ManufacturerOverview({ packageId }: ManufacturerOverviewProps) {
                                         <ul>
                                             {product.owner_history.map((owner, index) => (
                                                 <li key={index}>
-                                                    <strong>Owner:</strong> <code>{owner}</code><br />
-                                                    <strong>Date:</strong> {new Date(parseInt(product.timestamp_history[index])).toLocaleString()}<br />
-                                                    <strong>Price:</strong> {parseInt(product.price_history[index]) / 1_000_000_000} SUI
+                                                    <strong>Owner:</strong>{' '}
+                                                    <code>{owner}</code>
+                                                    <br />
+                                                    <strong>Date:</strong>{' '}
+                                                    {new Date(
+                                                        parseInt(product.timestamp_history[index]),
+                                                    ).toLocaleString()}
+                                                    <br />
+                                                    <strong>Price:</strong>{' '}
+                                                    {parseInt(product.price_history[index]) /
+                                                        1_000_000_000}{' '}
+                                                    SUI
                                                 </li>
                                             ))}
                                         </ul>
                                     </details>
                                 </td>
                                 <td>
-                                    <a href={getExplorerUrl(product.objectId)} target="_blank" rel="noopener noreferrer">
+                                    <a
+                                        href={getExplorerUrl(product.objectId)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
                                         View
                                     </a>
                                 </td>
@@ -153,4 +171,3 @@ export function ManufacturerOverview({ packageId }: ManufacturerOverviewProps) {
         </div>
     );
 }
-
